@@ -525,47 +525,135 @@ function nowHHMM() {
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }
 
+// Chat-bubble interaction (same look as the Kitchen/Inventory chat bar):
+// the installer "sends" the serial + customer contact, and the agent replies
+// in-thread with the verification result. verify(text) → reply string.
+function InstallerChatBar({ verify }) {
+  const [input, setInput] = usePageState("");
+  const [messages, setMessages] = usePageState([]);
+  const [open, setOpen] = usePageState(false);
+  const threadRef = usePageRef(null);
+  const inputRef = usePageRef(null);
+
+  usePageEffect(() => {
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+  }, [messages]);
+
+  // Example "submissions" an installer might send — one per outcome.
+  const CHIPS = [
+    { label: "se123456789 (new)",       text: "se123456789 012-888 1234" },
+    { label: "se987654321 (installed)", text: "se987654321 011-200 1199" },
+    { label: "Unknown serial",          text: "se000000000" },
+  ];
+
+  const send = (overrideText) => {
+    const text = (typeof overrideText === "string" ? overrideText : input).trim();
+    if (!text) return;
+    setInput("");
+    const reply = verify(text);
+    setMessages((m) => [...m, { role: "user", text }, { role: "assistant", text: reply }]);
+    setOpen(true);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  };
+
+  const chips = (
+    <div className="fm-chatbar-faq">
+      {CHIPS.map((q) => (
+        <button key={q.label} type="button" className="fm-chatbar-chip" onClick={() => send(q.text)}>
+          {q.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <React.Fragment>
+      {open && messages.length > 0 && (
+        <div className="fm-chatpop">
+          <div className="fm-chatpop-head">
+            <span className="fm-chatpop-title">Installer Agent</span>
+            <div className="fm-chatpop-actions">
+              <button className="fm-chatpop-btn" aria-label="Minimize chat" title="Minimize" onClick={() => setOpen(false)}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 12h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              </button>
+              <button className="fm-chatpop-btn" aria-label="Close chat (clears thread)" title="Close (clears thread)" onClick={() => { setOpen(false); setMessages([]); }}>×</button>
+            </div>
+          </div>
+          <div className="fm-chatpop-thread" ref={threadRef}>
+            {messages.map((m, i) => (
+              m.role === "user"
+                ? <div key={i} className="fm-chatpop-user">{m.text}</div>
+                : <div key={i} className="fm-chatpop-asst">{m.text}</div>
+            ))}
+            <div className="fm-chatpop-faq">{chips}</div>
+          </div>
+        </div>
+      )}
+      {chips}
+      <div className="fm-chatbar">
+        <input
+          ref={inputRef}
+          className="fm-chatbar-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onFocus={() => { if (messages.length > 0) setOpen(true); }}
+          onKeyDown={onKeyDown}
+          placeholder="Send serial + customer contact, e.g. se123456789 012-888 1234"
+        />
+        <button
+          className={"fm-chatbar-send" + (input.trim() ? " active" : "")}
+          onClick={() => send()}
+          disabled={!input.trim()}
+          aria-label="Send"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M9 17V8.5L19 12L9 15.5V17z" fill="currentColor"/>
+            <path d="M5 12h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </React.Fragment>
+  );
+}
+
 function InstallerAgentPage() {
   // Mutable per-session copy of the DB so a verify can flip installed 0 → 1.
   const dbRef = usePageRef(null);
   if (!dbRef.current) dbRef.current = JSON.parse(JSON.stringify(AIRCOND_SEED));
 
-  const [serial, setSerial] = usePageState("");
-  const [contact, setContact] = usePageState("");
-  const [result, setResult] = usePageState(null);
   const [feed, setFeed] = usePageState(INSTALLER_DATA.activity);
   const [verified, setVerified] = usePageState(18);
   const [pending, setPending] = usePageState(5);
   const [dupes, setDupes] = usePageState(2);
 
-  const verify = () => {
-    const key = serial.trim().toLowerCase();
-    const phone = contact.trim();
-    if (!key) { setResult({ ok: false, msg: "Enter the aircond serial number first." }); return; }
+  // Parse a chat message → run the install-DB check → return the agent's reply.
+  const runVerify = (text) => {
+    const serialMatch = text.match(/se\d{6,}/i);
+    const key = serialMatch ? serialMatch[0].toLowerCase() : "";
+    const phoneMatch = text.replace(/se\d{6,}/ig, " ").match(/\d[\d\s-]{6,}\d/);
+    const phone = phoneMatch ? phoneMatch[0].trim() : "";
+
+    if (!key) return "Please include the aircond serial number — e.g. “se123456789 012-888 1234”.";
 
     const unit = dbRef.current[key];
-    if (!unit) {
-      setResult({ ok: false, msg: `Serial "${serial.trim()}" is not in our system. Please double-check the serial number.` });
-      return;
-    }
+    if (!unit) return `Serial ${key} is not in our system. Please double-check the serial number.`;
+
     if (unit.installed === 1) {
       // already installed by someone else → reject the duplicate
-      setResult({ ok: false, msg: `This aircond (${key}) is already installed by another installer. Please double-check the serial number.` });
       setDupes((n) => n + 1);
       setFeed((f) => [{ time: nowHHMM(), id: key, text: `dup attempt · ${phone || unit.customer}`, status: "DUPLICATE" }, ...f]);
-      return;
+      return `⚠️ This aircond (${key}) is already installed by another installer. Please double-check the serial number.`;
     }
     // installed === 0 → mark done, confirm, notify customer
     unit.installed = 1;
-    setResult({ ok: true, msg: `Good job! Serial ${key} is verified and marked installed. We've updated the database and are notifying the customer at ${phone || unit.customer} now.` });
     setVerified((n) => n + 1);
     setPending((n) => Math.max(0, n - 1));
     setFeed((f) => [{ time: nowHHMM(), id: key, text: `${unit.model} · ${phone || unit.customer}`, status: "VERIFIED" }, ...f]);
-    setSerial("");
-    setContact("");
+    return `✅ Good job! Serial ${key} is verified and marked installed. We've updated the database and are notifying the customer at ${phone || unit.customer} now.`;
   };
-
-  const onEnter = (e) => { if (e.key === "Enter") verify(); };
 
   const kpis = [
     { icon: "check", value: String(verified), label: "verified today",  trend: { delta: "+20%", dir: "up", vs: "vs yesterday" } },
@@ -596,44 +684,9 @@ function InstallerAgentPage() {
 
       <BarChart {...INSTALLER_DATA.chart} />
 
-      <div className="fm-card fm-verify">
-        <div className="fm-card-title">Verify installation</div>
-        <div className="fm-verify-row">
-          <div className="fm-verify-field">
-            <label className="fm-verify-label">Aircond serial number</label>
-            <input
-              className="fm-verify-input"
-              value={serial}
-              onChange={(e) => setSerial(e.target.value)}
-              onKeyDown={onEnter}
-              placeholder="se123456789"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-          <div className="fm-verify-field">
-            <label className="fm-verify-label">Customer contact</label>
-            <input
-              className="fm-verify-input"
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              onKeyDown={onEnter}
-              placeholder="012-888 1234"
-              autoComplete="off"
-            />
-          </div>
-          <button className="fm-verify-btn" onClick={verify}>Verify install</button>
-        </div>
-        <div className="fm-verify-hint">
-          Installer submits this after finishing a job. Try <code>se123456789</code> (new install → success)
-          or <code>se987654321</code> (already installed → rejected).
-        </div>
-        {result && (
-          <div className={"fm-verify-result " + (result.ok ? "ok" : "bad")}>{result.msg}</div>
-        )}
-      </div>
-
       <ActivityFeed title="Recent verifications" rows={feed} />
+
+      <InstallerChatBar verify={runVerify} />
     </div>
   );
 }
