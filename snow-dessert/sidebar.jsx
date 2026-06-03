@@ -9,8 +9,6 @@ const DEFAULT_ROUTE = "app/installer-agent";
 const NAV = [
   { type: "header", label: "App" },
   { type: "item", id: "app/installer-agent", label: "Installer Agent" },
-  { type: "item", id: "app/kitchen-agent",   label: "Kitchen Agent" },
-  { type: "item", id: "app/inventory-agent", label: "Inventory Agent" },
 ];
 
 function getRouteFromHash() {
