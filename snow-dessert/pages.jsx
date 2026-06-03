@@ -489,9 +489,159 @@ function InventoryAgentPage() {
   />;
 }
 
+// ─── Installer Agent (aircond install verification) ─────────────
+// Real working logic — no backend needed. The "DB" is a client-side map:
+//   serial → { installed: 0|1, customer, model }
+//   installed 0 = not yet verified (installer is finishing the job now)
+//   installed 1 = already marked installed (a second submit is a duplicate)
+const AIRCOND_SEED = {
+  "se123456789": { installed: 0, customer: "012-888 1234",  model: "Daikin 1.5HP FTKF35A" },
+  "se987654321": { installed: 1, customer: "017-333 9090",  model: "Panasonic 1.0HP CS-PU" },
+  "se555000111": { installed: 0, customer: "011-2233 4455", model: "Midea 2.0HP Xtreme" },
+  "se444222888": { installed: 1, customer: "013-777 1212",  model: "Daikin 2.5HP FTKM" },
+  "se321321321": { installed: 0, customer: "012-555 6789",  model: "Acson 1.5HP A5MS" },
+};
+
+const INSTALLER_DATA = {
+  agent: "Installer Agent (Aircond Field Verification)",
+  tagline: "Installer submits serial + customer contact after a job → agent checks the install DB, marks it done, and notifies the customer",
+  status: { label: "Live", since: "real-time" },
+  chart: {
+    title: "Installs verified per hour",
+    labels: ["9a", "10a", "11a", "12p", "1p", "2p", "3p", "4p", "5p", "6p"],
+    values: [1, 2, 2, 3, 4, 2, 3, 1, 0, 0],
+  },
+  activity: [
+    { time: "14:32", id: "se771200345", text: "Daikin 1.5HP · 012-410 2231",     status: "VERIFIED" },
+    { time: "14:18", id: "se889100002", text: "Midea 2.0HP · 017-882 7781",       status: "VERIFIED" },
+    { time: "13:55", id: "se987654321", text: "dup attempt · 011-200 1199",       status: "DUPLICATE" },
+    { time: "13:40", id: "se640221890", text: "Panasonic 1.0HP · 013-552 8890",   status: "VERIFIED" },
+    { time: "13:12", id: "se551200781", text: "Acson 2.5HP · awaiting installer", status: "PENDING" },
+  ],
+};
+
+function nowHHMM() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function InstallerAgentPage() {
+  // Mutable per-session copy of the DB so a verify can flip installed 0 → 1.
+  const dbRef = usePageRef(null);
+  if (!dbRef.current) dbRef.current = JSON.parse(JSON.stringify(AIRCOND_SEED));
+
+  const [serial, setSerial] = usePageState("");
+  const [contact, setContact] = usePageState("");
+  const [result, setResult] = usePageState(null);
+  const [feed, setFeed] = usePageState(INSTALLER_DATA.activity);
+  const [verified, setVerified] = usePageState(18);
+  const [pending, setPending] = usePageState(5);
+  const [dupes, setDupes] = usePageState(2);
+
+  const verify = () => {
+    const key = serial.trim().toLowerCase();
+    const phone = contact.trim();
+    if (!key) { setResult({ ok: false, msg: "Enter the aircond serial number first." }); return; }
+
+    const unit = dbRef.current[key];
+    if (!unit) {
+      setResult({ ok: false, msg: `Serial "${serial.trim()}" is not in our system. Please double-check the serial number.` });
+      return;
+    }
+    if (unit.installed === 1) {
+      // already installed by someone else → reject the duplicate
+      setResult({ ok: false, msg: `This aircond (${key}) is already installed by another installer. Please double-check the serial number.` });
+      setDupes((n) => n + 1);
+      setFeed((f) => [{ time: nowHHMM(), id: key, text: `dup attempt · ${phone || unit.customer}`, status: "DUPLICATE" }, ...f]);
+      return;
+    }
+    // installed === 0 → mark done, confirm, notify customer
+    unit.installed = 1;
+    setResult({ ok: true, msg: `Good job! Serial ${key} is verified and marked installed. We've updated the database and are notifying the customer at ${phone || unit.customer} now.` });
+    setVerified((n) => n + 1);
+    setPending((n) => Math.max(0, n - 1));
+    setFeed((f) => [{ time: nowHHMM(), id: key, text: `${unit.model} · ${phone || unit.customer}`, status: "VERIFIED" }, ...f]);
+    setSerial("");
+    setContact("");
+  };
+
+  const onEnter = (e) => { if (e.key === "Enter") verify(); };
+
+  const kpis = [
+    { icon: "check", value: String(verified), label: "verified today",  trend: { delta: "+20%", dir: "up", vs: "vs yesterday" } },
+    { icon: "queue", value: String(pending),  label: "pending verify",  tone: "warn", trend: { delta: "in field", dir: "flat" } },
+    { icon: "alert", value: String(dupes),    label: "duplicate flags", tone: dupes > 0 ? "warn" : undefined, trend: { delta: "double-install guard", dir: "flat" } },
+    { icon: "clock", value: "97%",            label: "first-time-fix",  trend: { delta: "+3pp", dir: "up", vs: "vs last wk" } },
+  ];
+
+  return (
+    <div className="fm-dashboard">
+      <div className="fm-dash-head">
+        <div className="fm-dash-head-text">
+          <h1 className="fm-dash-title">{INSTALLER_DATA.agent}</h1>
+          <div className="fm-dash-tagline">{INSTALLER_DATA.tagline}</div>
+        </div>
+        <div className="fm-dash-status">
+          <span className="fm-dash-status-dot" />
+          <div>
+            <div className="fm-dash-status-label">{INSTALLER_DATA.status.label}</div>
+            <div className="fm-dash-status-since">{INSTALLER_DATA.status.since}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="fm-kpi-grid">
+        {kpis.map((k, i) => <KPI key={i} {...k} />)}
+      </div>
+
+      <BarChart {...INSTALLER_DATA.chart} />
+
+      <div className="fm-card fm-verify">
+        <div className="fm-card-title">Verify installation</div>
+        <div className="fm-verify-row">
+          <div className="fm-verify-field">
+            <label className="fm-verify-label">Aircond serial number</label>
+            <input
+              className="fm-verify-input"
+              value={serial}
+              onChange={(e) => setSerial(e.target.value)}
+              onKeyDown={onEnter}
+              placeholder="se123456789"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <div className="fm-verify-field">
+            <label className="fm-verify-label">Customer contact</label>
+            <input
+              className="fm-verify-input"
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              onKeyDown={onEnter}
+              placeholder="012-888 1234"
+              autoComplete="off"
+            />
+          </div>
+          <button className="fm-verify-btn" onClick={verify}>Verify install</button>
+        </div>
+        <div className="fm-verify-hint">
+          Installer submits this after finishing a job. Try <code>se123456789</code> (new install → success)
+          or <code>se987654321</code> (already installed → rejected).
+        </div>
+        {result && (
+          <div className={"fm-verify-result " + (result.ok ? "ok" : "bad")}>{result.msg}</div>
+        )}
+      </div>
+
+      <ActivityFeed title="Recent verifications" rows={feed} />
+    </div>
+  );
+}
+
 Object.assign(window, {
   KitchenAgentPage,
   InventoryAgentPage,
+  InstallerAgentPage,
   DashboardPage,
   DashboardChatBar,
 });
