@@ -17,8 +17,9 @@ function useIsMobile(breakpoint = 768) {
 
 // ── route → page (only the two agent dashboards) ──────────────
 function renderPage(route) {
+  if (route === "app/kitchen-agent")   return <window.KitchenAgentPage />;
   if (route === "app/inventory-agent") return <window.InventoryAgentPage />;
-  return <window.KitchenAgentPage />; // default + app/kitchen-agent
+  return <window.InstallerAgentPage />; // default + app/installer-agent
 }
 
 function App() {
