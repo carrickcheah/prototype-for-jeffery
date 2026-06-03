@@ -1,0 +1,132 @@
+[
+  {
+    "n": 1,
+    "tier": "A",
+    "name": "Tools",
+    "q": "What can the agent do?",
+    "simple": "Tools are the model's hands (act) and eyes (read). A brain with no tools can only talk — and will hallucinate, because it can't perceive or reach the real world.",
+    "how": [
+      "A skill is the recipe, a tool is the callable — the skill REFERENCES the tool, never the reverse.",
+      "The harness loads the matched skill into context BEFORE the model acts, so it picks the right tool and grounds its reply in the real result instead of guessing.",
+      "MCP (strict schema) for the customer agent; Code Mode (23 tools → 2) for the admin agent — trust-tiered, ~60% fewer input tokens."
+    ],
+    "killer": "Tools give the model hands. Harness engineering decides what those hands are allowed to touch."
+  },
+  {
+    "n": 2,
+    "tier": "A",
+    "name": "Context",
+    "q": "What does it see this step?",
+    "simple": "Context is everything in front of the model for one call — system prompt, skills, history, tool results. The model knows nothing else.",
+    "how": [
+      "What separates one agent from another is ~90% context (prompt + tools + MCP + db-scope + skills); the only non-context part is the model itself.",
+      "3-tier lazy loading: system prompt → keyword-matched skill → api_search fallback, scoped per-tenant from tenant_files by account_id.",
+      "Agent = Model + Context, so multiple agents are just multiple context bundles on the same brain."
+    ],
+    "killer": "Context is the model's entire reality for that step — control it and you control behavior."
+  },
+  {
+    "n": 3,
+    "tier": "A",
+    "name": "Control Flow",
+    "q": "Act, ask, retry, or stop?",
+    "simple": "The traffic controller around the brain — when to run the model, call a tool, retry, or stop. Cheap deterministic checks first, the expensive model last.",
+    "how": [
+      "Six cheap gates run BEFORE the LLM: self-message, valid payload, dedup, lock, human-handling, credits.",
+      "The agent loop is bounded — it stops on no-tool-call, a 20-turn cap, a 2-min timeout, or an isolation abort.",
+      "Fire-and-forget 202 — the webhook returns instantly while the agent works in the background."
+    ],
+    "killer": "Most of my control flow runs before the model: cheap deterministic checks first, the expensive model last."
+  },
+  {
+    "n": 4,
+    "tier": "A",
+    "name": "Guardrails",
+    "q": "What is it forbidden to do?",
+    "simple": "The locks the AI physically cannot break — like a smart new staff member you don't fully trust yet. They live in CODE (100% deterministic), not the prompt (~98%) — you can't protect money or records with 'probably'.",
+    "how": [
+      "Tenant isolation: the server OVERRIDES account_id — the AI can't even choose whose data it sees.",
+      "Refunds are hard-blocked (LOCKED_REVIEW_ACTIONS) — the AI can ask, but a human must approve.",
+      "Internal notes and tags are stripped before the customer ever sees the message."
+    ],
+    "killer": "The model can't pick the tenant — the server sets account_id. The LLM is an input, not an authority."
+  },
+  {
+    "n": 5,
+    "tier": "A",
+    "name": "Memory",
+    "q": "What carries between steps?",
+    "simple": "Without memory the agent is a goldfish. Memory lets it remember the customer across a conversation and across days.",
+    "how": [
+      "Tiered storage: SQLite+vec (agent memory), Postgres (company truth), Qdrant (scale).",
+      "A dedicated memory agent retrieves it; the LLM only orchestrates while a local embedder + reranker do the heavy lifting.",
+      "Recall and voting cost ZERO LLM tokens; a verifier checks 9 failure modes before the answer ships."
+    ],
+    "killer": "Heavy lifting is done by local embedder + reranker — the LLM only orchestrates."
+  },
+  {
+    "n": 6,
+    "tier": "B",
+    "name": "Reliability",
+    "q": "What if a step fails?",
+    "simple": "When something breaks, the AI doesn't die — it has a backup plan. Four kinds: backup, retry, timeout, degrade.",
+    "how": [
+      "7 failure points, each with a matched plan: per-turn model fallback, 2-min timeout, 20-turn loop cap, MCP health check, session sanitizer, stale-session retry, 503 load-shed.",
+      "Fallback is per-turn, not per-request — a backup model retries just the failed turn.",
+      "The skill is matching the plan to the failure — not retries everywhere (retrying a refund could double-charge)."
+    ],
+    "killer": "I designed for failure, not just the happy path."
+  },
+  {
+    "n": 7,
+    "tier": "B",
+    "name": "Observability",
+    "q": "How do I see what it did?",
+    "simple": "The window into an autonomous agent — so when something goes wrong you can see why, not guess. Without it, a 'wrong price' complaint has no record.",
+    "how": [
+      "OpenTelemetry/OTLP → Tempo (traces) + Prometheus (metrics) → Grafana (dashboards).",
+      "Per-request metrics (path, status, latency) land in TimescaleDB, flushed every 60s.",
+      "Every metric carries account_id → per-tenant visibility, not just system averages."
+    ],
+    "killer": "Not just 'the system is up' — I can prove THIS customer is being served well."
+  },
+  {
+    "n": 8,
+    "tier": "B",
+    "name": "Runtime Cost",
+    "q": "How much per reply — and cap it?",
+    "simple": "The petrol, not the car. Build cost is paid once; runtime cost is paid per reply, forever.",
+    "how": [
+      "Two sides: tokens I pay the LLM + credits the customer pays me — the credit system is the bridge that keeps them aligned.",
+      "Biggest lever = input tokens (re-sent every turn) → cut via Code Mode + lazy loading + history limit + zero-LLM recall.",
+      "Credit gate runs BEFORE the LLM (race-safe SELECT FOR UPDATE), with a deliberate fail-open so a billing outage never blocks a customer."
+    ],
+    "killer": "My biggest cost is input tokens, paid every turn — so I optimized what's IN context, not what comes out."
+  },
+  {
+    "n": 9,
+    "tier": "B",
+    "name": "Human-in-the-Loop",
+    "q": "When does a human decide?",
+    "simple": "A designed checkpoint, not a failure. Some decisions are too risky to let the AI make alone.",
+    "how": [
+      "Risky actions (refunds, returns) are blocked and queued for human approval.",
+      "Per-action risk tiers — auto / review / block — let each tenant set its own appetite.",
+      "Dangerous actions are pinned to 'review' and cannot be downgraded — a safety floor."
+    ],
+    "killer": "I don't hardcode what needs a human — it's a per-tenant policy with a non-downgradable floor."
+  },
+  {
+    "n": 10,
+    "tier": "B",
+    "name": "Evaluation",
+    "q": "How do I know it's correct?",
+    "simple": "Testing if the AI's answers are correct, like giving a student an exam. My honest weak spot — and a roadmap.",
+    "how": [
+      "Offline (staging) via promptfoo: golden tests, regression, red-team, model comparison — runs in CI.",
+      "Online (production): live reply sampling + CSAT + an inline verifier — the gap I still need to build.",
+      "AI is probabilistic, so you can't exact-match — you grade fuzzily (keyword / LLM-judge / human)."
+    ],
+    "killer": "I can prove the agent is safe and cheap; proving it's measurably accurate over time is my next build."
+  }
+]
