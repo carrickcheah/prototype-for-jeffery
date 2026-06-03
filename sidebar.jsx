@@ -4,25 +4,12 @@
 
 const { useState: useSidebarState, useEffect: useSidebarEffect } = React;
 
-const DEFAULT_ROUTE = "app/customer-facing-agent";
+const DEFAULT_ROUTE = "app/kitchen-agent";
 
 const NAV = [
   { type: "header", label: "App" },
-  { type: "item", id: "app/customer-facing-agent", label: "Customer-facing Agent" },
-  { type: "item", id: "app/kitchen-agent",       label: "Kitchen Agent" },
-  { type: "item", id: "app/inventory-agent",     label: "Inventory Agent" },
-
-  { type: "header", label: "Docs" },
-  { type: "item", id: "docs/guide",         label: "Guide",          file: "docs/DEMO_SCRIPT.md" },
-  { type: "item", id: "docs/architecture",  label: "Architecture",   file: "docs/chart_feedme_architecture.svg" },
-  { type: "item", id: "docs/agents-archi",  label: "Agents",         file: "docs/chart_agent_flows.svg" },
-  { type: "item", id: "docs/memory-layers", label: "Memory Layers",  file: "docs/chart_memgc_answer_flow.svg" },
-  { type: "item", id: "docs/database",      label: "MCP, Tools, Skills, DB", file: "docs/chart_mcp_servers.svg" },
-  { type: "item", id: "docs/evals",         label: "Evals/Red Team", file: "docs/EVAL_SCENARIOS.md" },
-  { type: "item", id: "docs/cicd",          label: "CI/CD",          file: null },
-
-  { type: "header", label: "Summary" },
-  { type: "item", id: "summary",            label: "Summary",        file: "README.md" },
+  { type: "item", id: "app/kitchen-agent",   label: "Kitchen Agent" },
+  { type: "item", id: "app/inventory-agent", label: "Inventory Agent" },
 ];
 
 function getRouteFromHash() {
@@ -48,9 +35,9 @@ function Sidebar() {
   return (
     <aside className="fm-sidebar">
       <div className="fm-brand">
-        <div className="fm-brand-mark">F</div>
+        <div className="fm-brand-mark">A</div>
         <div>
-          <div className="fm-brand-name">FeedMe</div>
+          <div className="fm-brand-name">AAA</div>
           <div className="fm-brand-sub">Agentic AI · Prototype</div>
         </div>
       </div>
@@ -63,8 +50,8 @@ function Sidebar() {
         })}
       </nav>
       <div className="fm-foot">
-        <a href="https://github.com/carrickcheah/ai-feedme" target="_blank" rel="noreferrer">
-          github.com/carrickcheah/ai-feedme
+        <a href="https://github.com/carrickcheah/prototype-for-jeffery" target="_blank" rel="noreferrer">
+          github.com/carrickcheah/prototype-for-jeffery
         </a>
       </div>
     </aside>
@@ -72,9 +59,9 @@ function Sidebar() {
 }
 
 // ── Mobile-only nav drawer ─────────────────────────────────────
-// Slides in from left when the kiosk hamburger is tapped. Same NAV
+// Slides in from left when the dashboard hamburger is tapped. Same NAV
 // items as the desktop Sidebar. Tapping a link navigates via hash;
-// App.jsx auto-closes on route change.
+// app.jsx auto-closes on route change.
 function MobileNav({ open, onClose }) {
   const route = useHashRoute();
   return (
@@ -93,9 +80,9 @@ function MobileNav({ open, onClose }) {
         aria-hidden={!open}
       >
         <div className="fm-brand">
-          <div className="fm-brand-mark">F</div>
+          <div className="fm-brand-mark">A</div>
           <div>
-            <div className="fm-brand-name">FeedMe</div>
+            <div className="fm-brand-name">AAA</div>
             <div className="fm-brand-sub">Agentic AI · Prototype</div>
           </div>
           <button
@@ -113,8 +100,8 @@ function MobileNav({ open, onClose }) {
           })}
         </nav>
         <div className="fm-foot">
-          <a href="https://github.com/carrickcheah/ai-feedme" target="_blank" rel="noreferrer">
-            github.com/carrickcheah/ai-feedme
+          <a href="https://github.com/carrickcheah/prototype-for-jeffery" target="_blank" rel="noreferrer">
+            github.com/carrickcheah/prototype-for-jeffery
           </a>
         </div>
       </aside>

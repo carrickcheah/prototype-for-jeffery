@@ -5,7 +5,6 @@
 
 const { useState: usePageState, useEffect: usePageEffect, useRef: usePageRef } = React;
 
-const RAW_BASE = "https://raw.githubusercontent.com/carrickcheah/ai-feedme/main/";
 const CHAT_API_URL =
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
     ? "http://localhost:8002/api/chat/sync"
@@ -16,53 +15,6 @@ function renderMarkdownSafely(md) {
   const raw = window.marked.parse(md);
   const clean = window.DOMPurify ? window.DOMPurify.sanitize(raw) : raw;
   return { __html: clean };
-}
-
-// ─── SVG page (architecture diagrams etc) ──────────────────────
-// Cache-bust the SVG URL with a per-page-load timestamp so iterative
-// diagram edits surface immediately without forcing a hard-reload.
-function SvgPage({ src, title }) {
-  const cb = usePageRef(Date.now()).current;
-  const url = `${RAW_BASE}${src}?cb=${cb}`;
-  return (
-    <div className="fm-doc fm-svg-page">
-      {title && <h1 className="fm-doc-title">{title}</h1>}
-      <div className="fm-svg-wrap">
-        <img src={url} alt={title || "diagram"} className="fm-svg-img" />
-      </div>
-    </div>
-  );
-}
-
-// ─── Markdown page ──────────────────────────────────────────────
-function MarkdownPage({ file, title }) {
-  const [md, setMd] = usePageState("");
-  const [error, setError] = usePageState(null);
-
-  usePageEffect(() => {
-    if (!file) return;
-    setMd("");
-    setError(null);
-    fetch(RAW_BASE + file)
-      .then((r) => r.ok ? r.text() : Promise.reject(new Error("HTTP " + r.status)))
-      .then(setMd)
-      .catch((e) => setError(e.message));
-  }, [file]);
-
-  return (
-    <div className="fm-doc">
-      {title && <h1 className="fm-doc-title">{title}</h1>}
-      {error ? (
-        <div className="fm-doc-error">
-          Could not load <code>{file}</code>: {error}
-        </div>
-      ) : md ? (
-        <div className="fm-md" dangerouslySetInnerHTML={renderMarkdownSafely(md)} />
-      ) : (
-        <div className="fm-doc-loading">Loading {file}…</div>
-      )}
-    </div>
-  );
 }
 
 // ─── Liquid-style sticky chat bar with pop-up thread ────────────
@@ -537,28 +489,9 @@ function InventoryAgentPage() {
   />;
 }
 
-// ─── Placeholder for items without a backing doc ────────────────
-function ComingSoonPage({ what }) {
-  return (
-    <div className="fm-doc">
-      <h1 className="fm-doc-title">{what}</h1>
-      <p>This section isn't part of the interview prototype scope. The build artifacts are in the repo:</p>
-      <ul>
-        <li><a href="https://github.com/carrickcheah/ai-feedme/actions" target="_blank" rel="noreferrer">GitHub Actions (CI status)</a></li>
-        <li><a href="https://github.com/carrickcheah/ai-feedme/commits/main" target="_blank" rel="noreferrer">Commit history</a></li>
-        <li><a href="https://github.com/carrickcheah/ai-feedme" target="_blank" rel="noreferrer">Repo root</a></li>
-      </ul>
-      <p>For interview demo, the eval loop in <code>bun run eval</code> stands in for full CI/CD — it's the test gate that would block a merge.</p>
-    </div>
-  );
-}
-
 Object.assign(window, {
-  MarkdownPage,
-  SvgPage,
   KitchenAgentPage,
   InventoryAgentPage,
-  ComingSoonPage,
   DashboardPage,
   DashboardChatBar,
 });
