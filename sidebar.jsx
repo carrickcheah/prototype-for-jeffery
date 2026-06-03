@@ -49,11 +49,6 @@ function Sidebar() {
           return <a key={i} href={"#" + n.id} className={cls}>{n.label}</a>;
         })}
       </nav>
-      <div className="fm-foot">
-        <a href="https://github.com/carrickcheah/prototype-for-jeffery" target="_blank" rel="noreferrer">
-          github.com/carrickcheah/prototype-for-jeffery
-        </a>
-      </div>
     </aside>
   );
 }
@@ -99,11 +94,6 @@ function MobileNav({ open, onClose }) {
             return <a key={i} href={"#" + n.id} className={cls} onClick={onClose}>{n.label}</a>;
           })}
         </nav>
-        <div className="fm-foot">
-          <a href="https://github.com/carrickcheah/prototype-for-jeffery" target="_blank" rel="noreferrer">
-            github.com/carrickcheah/prototype-for-jeffery
-          </a>
-        </div>
       </aside>
     </React.Fragment>
   );
