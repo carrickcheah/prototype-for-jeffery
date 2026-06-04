@@ -173,8 +173,8 @@ function InstallerChatBar({ verify }) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const chips = (
-    <div className="fm-chatbar-faq">
+  const chipRow = (cls) => (
+    <div className={cls}>
       {CHIPS.map((q) => (
         <button key={q.label} type="button" className="fm-chatbar-chip" onClick={() => send(q.text)}>
           {q.label}
@@ -202,11 +202,11 @@ function InstallerChatBar({ verify }) {
                 ? <div key={i} className="fm-chatpop-user">{m.text}</div>
                 : <div key={i} className="fm-chatpop-asst">{m.text}</div>
             ))}
-            <div className="fm-chatpop-faq">{chips}</div>
+            {chipRow("fm-chatpop-faq")}
           </div>
         </div>
       )}
-      {chips}
+      {chipRow("fm-chatbar-faq")}
       <div className="fm-chatbar">
         <input
           ref={inputRef}
